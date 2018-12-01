@@ -153,6 +153,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="bptree.hpp" />
     <ClInclude Include="cache.hpp" />
     <ClInclude Include="controller.hpp" />
     <ClInclude Include="keeper.hpp" />
