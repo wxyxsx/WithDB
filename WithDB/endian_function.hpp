@@ -180,9 +180,11 @@ namespace db {
 		auto tmp = endian_serialize(value);
 		auto ptr = reinterpret_cast<char *>(&tmp);
 		std::size_t cnt = 0;
-		for (auto iter = first; iter != last && cnt < sizeof(Type); ++iter, ++cnt) {
+		auto iter = first;
+		for (; iter != last && cnt < sizeof(Type); ++iter, ++cnt) {
 			*iter = *(ptr + cnt);
 		}
+
 		if (cnt < sizeof(Type)) {
 			throw std::out_of_range("[write_value] iterator out of range");
 		}
@@ -203,6 +205,9 @@ namespace db {
 				throw std::out_of_range("[write_value] iterator out of range");
 				return;
 			}
+		}
+		if (iter != last) {
+			*iter = '\0';
 		}
 	}
 

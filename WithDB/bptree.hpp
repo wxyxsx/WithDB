@@ -17,7 +17,7 @@ namespace db {
 
 	using str = std::string;
 
-	constexpr int BUFFSIZE = 1024; // 节点buffer大小
+	constexpr int BUFFSIZE = 256; // 节点buffer大小
 	constexpr int MAXSTRSIZE = 20; // 字符串最大长度
 	constexpr address NULLADDR = 0; // NULL在数据库地址中的表示
 	constexpr int N = (BUFFSIZE - 16) / 12; // 节点能放下的整型key数
