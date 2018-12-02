@@ -17,7 +17,7 @@ namespace db {
 
 	using str = std::string;
 
-	constexpr int BUFFSIZE = 80; // 节点buffer大小
+	constexpr int BUFFSIZE = 1024; // 节点buffer大小
 	constexpr int MAXSTRSIZE = 20; // 字符串最大长度
 	constexpr address NULLADDR = 0; // NULL在数据库地址中的表示
 	constexpr int N = (BUFFSIZE - 16) / 12; // 节点能放下的整型key数
@@ -83,10 +83,6 @@ namespace db {
 				cur += sizeof(address);
 			}
 			unpin();
-		}
-
-		std::vector<char> debug() {
-			return std::vector<char>(begin(), end());
 		}
 
 		bool check() {
@@ -225,10 +221,6 @@ namespace db {
 				cur += sizeof(address);
 			}
 			unpin();
-		}
-
-		std::vector<char> debug() {
-			return std::vector<char>(begin(), end());
 		}
 
 		bool check() {
@@ -409,6 +401,7 @@ namespace db {
 		}
 
 		void erase_node(address addr) {
+			std::cout << "erasenode:" << addr << std::endl;
 			Node<T>* nd = getnode(addr);
 			nd->flag = 0;
 			nd->close();
@@ -762,45 +755,30 @@ namespace db {
 		}
 
 		bptree(const char *path, bool sign) : k(path, sign) { // 默认新建b+树
-			sid = 1;
 			k.start();
 			create();
 		}
 
 		bptree(const char *path, bool sign, address addr) : k(path, sign) { // 传入数据库地址则进行读取
-			sid = 1;
 			k.start();
 			if (load(addr)) std::cout << "读取索引成功" << std::endl;
 			else {
 				create();
-				std::cout << "提供地址无效，新建数据库" << std::endl;
+				std::cout << "提供地址无效，新建数据库" << pointroot << std::endl;
 			}
 		}
-
-		// todo 没法
-		address sid;
 
 		// 新建节点并返回数据库地址
 		address newnode() {
 			Node<T>* r = NULL;
 			address i = 0;
-			for (i = sid;i < SEGMENT_SIZE/PAGE_SIZE;i++) { // 暂时还未实现空闲空间管理功能，未来要实现bitmap
-			/*	auto iter = stb.find(i);
-				if (iter != stb.end()) continue;*/
-				//if (i <= sid) continue;
-				
+			for (i = 1;i < SEGMENT_SIZE/PAGE_SIZE;i++) { // 暂时还未实现空闲空间管理功能，未来要实现bitmap
 				Node<T>* p = new Node<T>(std::move(k.hold(i*PAGE_SIZE + SEGMENT_SIZE)));
-				
 				if (p->check()) { // 表示page未使用
-					sid = i + 1;
-					auto tp = p->debug();
 					p->dump(); // 急需空闲空间管理 这也太浪费了
-					
 					r = p;
 					setnode(r, i);
-					//if (i > 130) {
-					std::cout << i << std::endl;
-					//}
+					std::cout << "newnode:" << i << std::endl;
 					break;
 				}
 				else {
@@ -809,7 +787,6 @@ namespace db {
 			}
 			if (r == NULL) return SEGMENT_SIZE;
 			else return i;
-			//return r;
 		}
 
 		// 读取节点内容并存入控制结构
@@ -818,12 +795,11 @@ namespace db {
 			
 			if (p->check()) return false;
 			else {
-				std::cout << addr << std::endl;
+				std::cout << "loadnode:" << addr << std::endl;
 				p->load();
 				setnode(p, addr);
 				if (p->flag != 1) {
 					for (int i = 0;i < p->n + 1;i++) {
-						//std::cout << p->a[i] << std::endl;
 						if (p->a[i] == NULLADDR) continue;
 						if (!loadnode(p->a[i])) return false;
 					}
