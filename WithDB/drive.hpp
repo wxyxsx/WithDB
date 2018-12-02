@@ -488,6 +488,7 @@ namespace db {
 				}
 			}
 			auto limit = system ? io_entry_page::SYSTEM_FREE_MASTER_PTRS_SIZE : io_entry_page::USER_FREE_MASTER_PTRS_SIZE;
+			master.free_slave_offsets.clear();
 			get(master, addr, false);
 			insert_master(mptrs, limit, addr);
 			put(master, addr);

@@ -153,6 +153,7 @@ namespace db {
 		virtual void dump() {
 		}
 
+		
 		using iterator = Iter;
 	};
 

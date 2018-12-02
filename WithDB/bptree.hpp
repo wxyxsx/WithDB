@@ -17,7 +17,7 @@ namespace db {
 
 	using str = std::string;
 
-	constexpr int BUFFSIZE = 1024; // 节点buffer大小
+	constexpr int BUFFSIZE = 80; // 节点buffer大小
 	constexpr int MAXSTRSIZE = 20; // 字符串最大长度
 	constexpr address NULLADDR = 0; // NULL在数据库地址中的表示
 	constexpr int N = (BUFFSIZE - 16) / 12; // 节点能放下的整型key数
@@ -50,31 +50,20 @@ namespace db {
 			while (!pin()) {
 			}
 			flag = read<int>(FLAG_POS);
-			if (flag != 0) {
-				n = read<int>(FLAG_NUM);
-				next = read<address>(FLAG_NEXT);
-				page_address cur = FLAG_VECTOR;
-				resize();
-				for (int i = 0;i < n;i++) {
-					k[i] = read<T>(cur);
-					cur += sizeof(T);
-					a[i] = read<address>(cur);
-					cur += sizeof(address);
-				}
-				if (flag != 1) {
-					a[n] = next;
-				}
+			n = read<int>(FLAG_NUM);
+			next = read<address>(FLAG_NEXT);
+			page_address cur = FLAG_VECTOR;
+			resize();
+			for (int i = 0;i < n;i++) {
+				k[i] = read<T>(cur);
+				cur += sizeof(T);
+				a[i] = read<address>(cur);
+				cur += sizeof(address);
 			}
-			else {
-				n = 0;
-				a.resize(1, NULLADDR);
-				next = NULLADDR;
+			if (flag != 1) {
+				a[n] = next;
 			}
 			unpin();
-		}
-
-		inline std::vector<char> debug() {
-			return std::vector<char>(begin(), end());
 		}
 
 		virtual void dump() {
@@ -93,8 +82,29 @@ namespace db {
 				write(a[i], cur);
 				cur += sizeof(address);
 			}
-			auto d = debug();
 			unpin();
+		}
+
+		std::vector<char> debug() {
+			return std::vector<char>(begin(), end());
+		}
+
+		bool check() {
+			reactivate();
+			while (!pin()) {
+			}
+			bool sign = false;
+			flag = read<int>(FLAG_POS);
+			if (flag == 0) {
+
+				flag = 1;
+				n = 0;
+				a.resize(1, NULLADDR);
+				next = NULLADDR;
+				sign = true;
+			}
+			unpin();
+			return sign;
 		}
 
 		void close() {
@@ -180,27 +190,20 @@ namespace db {
 			while (!pin()) {
 			}
 			flag = read<int>(FLAG_POS);
-			if (flag != 0) {
-				n = read<int>(FLAG_NUM);
-				next = read<address>(FLAG_NEXT);
-				page_address cur = FLAG_VECTOR;
-				page_address last = BUFFSIZE - 1;
-				resize();
-				for (int i = 0;i < n;i++) {
-					str key = read<str>(cur, last);
-					k[i] = key;
-					cur += static_cast<page_address>(key.length()) + 1;
-					a[i] = read<address>(cur);
-					cur += sizeof(address);
-				}
-				if (flag != 1) {
-					a[n] = next;
-				}
+			n = read<int>(FLAG_NUM);
+			next = read<address>(FLAG_NEXT);
+			page_address cur = FLAG_VECTOR;
+			page_address last = BUFFSIZE;
+			resize();
+			for (int i = 0;i < n;i++) {
+				str key = read<str>(cur, last);
+				k[i] = key;
+				cur += static_cast<page_address>(key.length()) + 1;
+				a[i] = read<address>(cur);
+				cur += sizeof(address);
 			}
-			else {
-				n = 0;
-				a.resize(1, NULLADDR);
-				next = NULLADDR;
+			if (flag != 1) {
+				a[n] = next;
 			}
 			unpin();
 		}
@@ -214,14 +217,35 @@ namespace db {
 			if (flag == 1) write(next, FLAG_NEXT);
 			else write(a[n], FLAG_NEXT);
 			page_address cur = FLAG_VECTOR;
-			page_address last = BUFFSIZE - 1;
+			page_address last = BUFFSIZE;
 			for (int i = 0;i < n;i++) {
 				write(k[i], cur, last);
 				cur += static_cast<page_address>(k[i].length()) + 1;
-				write(a[i], cur, last);
+				write(a[i], cur);
 				cur += sizeof(address);
 			}
 			unpin();
+		}
+
+		std::vector<char> debug() {
+			return std::vector<char>(begin(), end());
+		}
+
+		bool check() {
+			reactivate();
+			while (!pin()) {
+			}
+			flag = read<int>(FLAG_POS);
+			bool sign = false;
+			if (flag == 0) {
+				flag = 1;
+				n = 0;
+				a.resize(1, NULLADDR);
+				next = NULLADDR;
+				sign = true;
+			}
+			unpin();
+			return sign;
 		}
 
 		void close() {
@@ -363,13 +387,6 @@ namespace db {
 		address root; // root节点的数据库地址 因为root节点也会变动
 		address pointroot;
 
-		address sid;
-		address getfreeaddr() { // 模拟对空闲地址的查找
-			address r = sid;
-			sid++;
-			return r;
-		}
-
 		// 数据库地址 -> 节点指针 可能返回NULL
 		Node<T>* getnode(address addr) {
 			if (addr == NULLADDR) return NULL;
@@ -389,7 +406,6 @@ namespace db {
 				objlst.push_back(nd);
 			}
 			stb[addr] = key;
-			//			return addr;
 		}
 
 		void erase_node(address addr) {
@@ -746,11 +762,13 @@ namespace db {
 		}
 
 		bptree(const char *path, bool sign) : k(path, sign) { // 默认新建b+树
+			sid = 1;
 			k.start();
 			create();
 		}
 
 		bptree(const char *path, bool sign, address addr) : k(path, sign) { // 传入数据库地址则进行读取
+			sid = 1;
 			k.start();
 			if (load(addr)) std::cout << "读取索引成功" << std::endl;
 			else {
@@ -759,18 +777,30 @@ namespace db {
 			}
 		}
 
+		// todo 没法
+		address sid;
+
 		// 新建节点并返回数据库地址
 		address newnode() {
 			Node<T>* r = NULL;
 			address i = 0;
-			for (i = 1;i < SEGMENT_SIZE;i++) { // 暂时还未实现空闲空间管理功能，未来要实现bitmap
+			for (i = sid;i < SEGMENT_SIZE/PAGE_SIZE;i++) { // 暂时还未实现空闲空间管理功能，未来要实现bitmap
+			/*	auto iter = stb.find(i);
+				if (iter != stb.end()) continue;*/
+				//if (i <= sid) continue;
+				
 				Node<T>* p = new Node<T>(std::move(k.hold(i*PAGE_SIZE + SEGMENT_SIZE)));
-				p->load();
-				if (p->flag == 0) { // 表示page未使用
-					p->flag = 1;
+				
+				if (p->check()) { // 表示page未使用
+					sid = i + 1;
+					auto tp = p->debug();
 					p->dump(); // 急需空闲空间管理 这也太浪费了
+					
 					r = p;
 					setnode(r, i);
+					//if (i > 130) {
+					std::cout << i << std::endl;
+					//}
 					break;
 				}
 				else {
@@ -785,12 +815,15 @@ namespace db {
 		// 读取节点内容并存入控制结构
 		bool loadnode(address addr) {
 			Node<T>* p = new Node<T>(std::move(k.hold(addr*PAGE_SIZE + SEGMENT_SIZE)));
-			p->load();
-			if (p->flag == 0) return false;
+			
+			if (p->check()) return false;
 			else {
+				std::cout << addr << std::endl;
+				p->load();
 				setnode(p, addr);
 				if (p->flag != 1) {
 					for (int i = 0;i < p->n + 1;i++) {
+						//std::cout << p->a[i] << std::endl;
 						if (p->a[i] == NULLADDR) continue;
 						if (!loadnode(p->a[i])) return false;
 					}
@@ -819,6 +852,7 @@ namespace db {
 			pointroot = addr;
 			if (!loadnode(addr)) return false;
 			Node<T>* pproot = getnode(pointroot);
+			root = pproot->next;
 			if (!loadnode(pproot->next)) return false;
 			return true;
 		}
