@@ -1,7 +1,8 @@
 #pragma once
 
 #include "keeper.hpp"
-#include "type_config.hpp"
+#include "definitions.hpp"
+#include "translator.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -14,11 +15,14 @@
 namespace db {
 
 	// todo 处理字符串(删除，查询，删除)要限制最大长度
+	// todo 使用以前用过的块会出现问题，但是如果重启keeper就不会出问题
+	// 问题的具体表现是dump时node的k值莫名奇妙被删除
+	// 以及stb（内存结构都能动？）莫名增加新的表项
 
 	using str = std::string;
 
-	constexpr int BUFFSIZE = 256; // 节点buffer大小
-	constexpr int MAXSTRSIZE = 20; // 字符串最大长度
+	constexpr int BUFFSIZE = 4096; // 节点buffer大小
+	constexpr int MAXSTRSIZE = 20; // 字符串最大长度，然而并没有用到
 	constexpr address NULLADDR = 0; // NULL在数据库地址中的表示
 	constexpr int N = (BUFFSIZE - 16) / 12; // 节点能放下的整型key数
 	constexpr int MINLF = (N + 1) / 2; // 叶节点最小整型key数
@@ -34,8 +38,75 @@ namespace db {
 	4[flag]+4[num]+4*n[key]+8*(n+1)[addr]=BUFFSIZE
 	*/
 
+	// bitmap功能
+	struct Bitmap : VirtualPage
+	{
+		std::vector<unsigned char> _bits;
+
+		inline Bitmap(container_type &container, size_t first, size_t last, Keeper &keeper, address addr, address length = PAGE_SIZE) : VirtualPage(container, first, last, keeper, addr, length) {
+			_bits.resize(4096);
+		}
+
+		void Set(size_t x) { //设置为1
+			int index = x / 8;
+			int temp = x % 8;
+			_bits[index] |= (1 << temp);
+		}
+
+		void Reset(size_t x) {
+			int index = x / 8;
+			int temp = x % 8;
+			_bits[index] &= ~(1 << temp);
+		}
+
+		bool Get(size_t x) {
+			int index = x / 8;
+			int temp = x % 8;
+			if (_bits[index] & (1 << temp)) return 1;
+			else return 0;
+		}
+
+		int Find() {
+			int i = 0;
+			int j = 0;
+			for (i = 0;i < 4096;i++) {
+				if (_bits[i] != 0xff) {
+					for (j = 0;j < 8;j++) {
+						if (!(_bits[i] & (1 << j))) {
+							break;
+						}
+					}
+					break;
+				}
+			}
+			return i * 8 + j;
+		}
+
+		virtual bool load() {
+			reactivate(true);
+			for (int i = 0;i < 4096;i++) {
+				_bits[i] = read<unsigned char>(i);
+			}
+			unpin();
+			return true;
+		}
+
+		virtual bool dump() {
+			reactivate(true);
+			for (int i = 0;i < 4096;i++) {
+				write(_bits[i], i);
+			}
+			unpin();
+			return true;
+		}
+
+		void close() {
+			dump();
+		}
+	};
+
 	template <typename T>
-	class Node : virtual_page
+	struct Node : VirtualPage
 	{
 	public:
 		int flag;
@@ -45,10 +116,15 @@ namespace db {
 		std::vector<address> a;
 		address next;
 
-		virtual void load() {
-			reactivate();
-			while (!pin()) {
-			}
+		inline Node(container_type &container, size_t first, size_t last, Keeper &keeper, address addr, address length = PAGE_SIZE) : VirtualPage(container, first, last, keeper, addr, length) {
+			flag = 1;
+			n = 0;
+			resize();
+			next = NULLADDR;
+		}
+
+		virtual bool load() {
+			reactivate(true);
 			flag = read<int>(FLAG_POS);
 			n = read<int>(FLAG_NUM);
 			next = read<address>(FLAG_NEXT);
@@ -64,13 +140,11 @@ namespace db {
 				a[n] = next;
 			}
 			unpin();
+			return true;
 		}
 
-		virtual void dump() {
-			reactivate();
-			while (!pin()) {
-			}
-			
+		virtual bool dump() {
+			reactivate(true);		
 			write(flag, FLAG_POS);
 			write(n, FLAG_NUM);
 			if (flag == 1) write(next, FLAG_NEXT);
@@ -83,32 +157,11 @@ namespace db {
 				cur += sizeof(address);
 			}
 			unpin();
-		}
-
-		bool check() {
-			reactivate();
-			while (!pin()) {
-			}
-			bool sign = false;
-			flag = read<int>(FLAG_POS);
-			if (flag == 0) {
-
-				flag = 1;
-				n = 0;
-				a.resize(1, NULLADDR);
-				next = NULLADDR;
-				sign = true;
-			}
-			unpin();
-			return sign;
+			return true;
 		}
 
 		void close() {
 			dump();
-		}
-
-		Node(virtual_page &&origin) : virtual_page(std::move(origin)) {
-
 		}
 
 		/*node(void) {
@@ -173,7 +226,8 @@ namespace db {
 
 	//template <typename T, std::enable_if<>>
 	template<>
-	class Node<str> : virtual_page {
+	struct Node<str> : VirtualPage
+	{
 	public:
 		int flag;
 		int n;
@@ -181,10 +235,15 @@ namespace db {
 		std::vector<address> a;
 		address next;
 
-		virtual void load() {
-			reactivate();
-			while (!pin()) {
-			}
+		inline Node(container_type &container, size_t first, size_t last, Keeper &keeper, address addr, address length = PAGE_SIZE) : VirtualPage(container, first, last, keeper, addr, length) {
+			flag = 1;
+			n = 0;
+			resize();
+			next = NULLADDR;
+		}
+
+		virtual bool load() {
+			reactivate(true);
 			flag = read<int>(FLAG_POS);
 			n = read<int>(FLAG_NUM);
 			next = read<address>(FLAG_NEXT);
@@ -202,12 +261,11 @@ namespace db {
 				a[n] = next;
 			}
 			unpin();
+			return true;
 		}
 
-		virtual void dump() {
-			reactivate();
-			while (!pin()) {
-			}
+		virtual bool dump() {
+			reactivate(true);
 			write(flag, FLAG_POS);
 			write(n, FLAG_NUM);
 			if (flag == 1) write(next, FLAG_NEXT);
@@ -221,31 +279,11 @@ namespace db {
 				cur += sizeof(address);
 			}
 			unpin();
-		}
-
-		bool check() {
-			reactivate();
-			while (!pin()) {
-			}
-			flag = read<int>(FLAG_POS);
-			bool sign = false;
-			if (flag == 0) {
-				flag = 1;
-				n = 0;
-				a.resize(1, NULLADDR);
-				next = NULLADDR;
-				sign = true;
-			}
-			unpin();
-			return sign;
+			return true;
 		}
 
 		void close() {
 			dump();
-		}
-
-		Node(virtual_page &&origin) : virtual_page(std::move(origin)) {
-
 		}
 
 		/*Node(void) {
@@ -371,10 +409,11 @@ namespace db {
 	{
 	public:
 
-		std::vector<Node<T>*> objlst; // 存放所有节点的指针
+		std::vector<std::shared_ptr<Node<T>>> objlst; // 存放所有节点的指针
+		std::shared_ptr<Bitmap> bits;
 		std::unordered_map<address, int> stb; // 根据数据库地址检索在objlst中的偏移 
 		std::set<int> ftb; // 存放所有objlst中空闲的偏移 set中数据自动排序 便于回收空间
-		keeper k;
+		Keeper* kp;
 
 		address root; // root节点的数据库地址 因为root节点也会变动
 		address pointroot;
@@ -382,11 +421,11 @@ namespace db {
 		// 数据库地址 -> 节点指针 可能返回NULL
 		Node<T>* getnode(address addr) {
 			if (addr == NULLADDR) return NULL;
-			return objlst[stb[addr]];
+			return objlst[stb[addr]].get();
 		}
 
 		// 节点指针 存放在objlst中 -> 分配的数据库地址
-		void setnode(Node<T>* nd, address addr) {
+		void setnode(std::shared_ptr<Node<T>> nd, address addr) {
 			int key = 0;
 			if (ftb.size() != 0) { // 如果有空闲空间 则从set中获取偏移
 				key = *(ftb.begin());
@@ -405,10 +444,13 @@ namespace db {
 			Node<T>* nd = getnode(addr);
 			nd->flag = 0;
 			nd->close();
-			delete nd;
+			//nd->clear();
+
+			//bits->Reset(addr-1);
 			int i = stb[addr];
 			stb.erase(addr);
-			objlst[i] = NULL;
+			objlst[i].reset();
+			//objlst[i] = NULL;
 			ftb.insert(i);
 		}
 
@@ -754,13 +796,23 @@ namespace db {
 			std::cout << "-------------------------------------" << std::endl;
 		}
 
-		bptree(const char *path, bool sign) : k(path, sign) { // 默认新建b+树
-			k.start();
+		//address s = SEGMENT_SIZE;
+		address s = Translator::segmentBegin(INDEX_SEG)*SEGMENT_SIZE;
+
+		void loadbitmap() {
+			bits = kp->hold<Bitmap>(s, true, false);
+			bits->load();
+		}
+
+		bptree(Keeper* _k)  { // 默认新建b+树
+			kp = _k;
+			loadbitmap();
 			create();
 		}
 
-		bptree(const char *path, bool sign, address addr) : k(path, sign) { // 传入数据库地址则进行读取
-			k.start();
+		bptree(Keeper* _k ,address addr) { // 传入数据库地址则进行读取
+			kp = _k;
+			loadbitmap();
 			if (load(addr)) std::cout << "读取索引成功" << std::endl;
 			else {
 				create();
@@ -770,41 +822,38 @@ namespace db {
 
 		// 新建节点并返回数据库地址
 		address newnode() {
-			Node<T>* r = NULL;
-			address i = 0;
-			for (i = 1;i < SEGMENT_SIZE/PAGE_SIZE;i++) { // 暂时还未实现空闲空间管理功能，未来要实现bitmap
-				Node<T>* p = new Node<T>(std::move(k.hold(i*PAGE_SIZE + SEGMENT_SIZE)));
-				if (p->check()) { // 表示page未使用
-					p->dump(); // 急需空闲空间管理 这也太浪费了
-					r = p;
-					setnode(r, i);
-					std::cout << "newnode:" << i << std::endl;
-					break;
-				}
-				else {
-					delete p;
-				}
-			}
-			if (r == NULL) return SEGMENT_SIZE;
-			else return i;
+			std::shared_ptr<Node<T>> r = NULL;
+			int f = bits->Find();
+			bits->Set(f);
+			f++;//避开0用于保存bitmap
+			std::shared_ptr<Node<T>> p = kp->hold<Node<T>>(f*PAGE_SIZE + s, true, false);
+			setnode(p, f);
+			std::cout << "newnode:" << f << std::endl;
+
+			//if (p == NULL) return SEGMENT_SIZE;
+			//else 
+			return f;
 		}
 
 		// 读取节点内容并存入控制结构
 		bool loadnode(address addr) {
-			Node<T>* p = new Node<T>(std::move(k.hold(addr*PAGE_SIZE + SEGMENT_SIZE)));
+			std::shared_ptr<Node<T>> p = kp->hold<Node<T>>(addr*PAGE_SIZE + s,true,false);
 			
-			if (p->check()) return false;
-			else {
-				std::cout << "loadnode:" << addr << std::endl;
-				p->load();
-				setnode(p, addr);
-				if (p->flag != 1) {
-					for (int i = 0;i < p->n + 1;i++) {
-						if (p->a[i] == NULLADDR) continue;
-						if (!loadnode(p->a[i])) return false;
+			//if (p->check()) return false;
+			//else {
+			std::cout << "loadnode:" << addr << std::endl;
+			p->load();
+			setnode(p, addr);
+			if (p->flag != 1) {
+				for (int i = 0;i < p->n + 1;i++) {
+					//if (p->a[i] == NULLADDR) continue;
+					//if (!loadnode(p->a[i])) return false;
+					if (p->a[i] != NULLADDR) {
+						loadnode(p->a[i]);
 					}
 				}
 			}
+			//}
 			return true;
 		}
 
@@ -820,6 +869,7 @@ namespace db {
 			proot->flag = 2;
 			pproot->flag = 1;
 			pproot->next = root;
+			
 			std::cout << "新建索引成功" << std::endl;
 			return true;
 		}
@@ -839,8 +889,8 @@ namespace db {
 			for (auto it = objlst.begin();it != objlst.end();++it) {
 				if (*it != NULL) (*it)->close();
 			}
-			k.stop();
-			k.close();
+			bits->close();
+			//bits->reset();
 		}
 
 		address search(T key) {
