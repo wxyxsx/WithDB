@@ -18,13 +18,19 @@
     <ClInclude Include="pch.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="endian_function.hpp">
+    <ClInclude Include="utils.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="type_config.hpp">
+    <ClInclude Include="endian.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="definitions.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="page.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="cache.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="drive.hpp">
@@ -33,19 +39,31 @@
     <ClInclude Include="translator.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="cache.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="keeper.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="tuple.hpp">
+    <ClInclude Include="relation.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="relation_guard.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="controller.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="bptree.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="index_guard.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="query.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="executor.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="backend.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

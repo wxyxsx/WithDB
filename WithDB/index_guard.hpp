@@ -5,22 +5,21 @@
 
 namespace db {
 	template<class T>
-	struct IndexGuard { // ¼òµ¥µÄ°ü×°bptree
+	struct IndexGuard { // ç®€å•çš„åŒ…è£…bptree
 		bptree<T>* tr;
-		address iroot; // Í¨¹ı¶ÁÈ¡iroot»ñÈ¡addressÎ»ÖÃ
+		address iroot; // é€šè¿‡è¯»å–irootè·å–addressä½ç½®
 
-		IndexGuard(Keeper* k) { // ĞÂ½¨Ê÷
+		IndexGuard(Keeper* k) { // æ–°å»ºæ ‘
 			tr = new bptree<T>(k);
 			iroot = tr->pointroot;
 		}
 
-		IndexGuard(Keeper* k, address r) { // ÔØÈëÒÑÓĞµÄÄÚÈİ
+		IndexGuard(Keeper* k, address r) { // è½½å…¥å·²æœ‰çš„å†…å®¹
 			tr = new bptree<T>(k, r);
-			iroot = r;
 		}
 
 		address fetch(T key) {
-			return tr->search(T);
+			return tr->search(key);
 		}
 
 		void allocate(T key, address value) {

@@ -14,20 +14,20 @@
 
 namespace db {
 
-	// todo ´¦Àí×Ö·û´®(É¾³ı£¬²éÑ¯£¬É¾³ı)ÒªÏŞÖÆ×î´ó³¤¶È
-	// todo Ê¹ÓÃÒÔÇ°ÓÃ¹ıµÄ¿é»á³öÏÖÎÊÌâ£¬µ«ÊÇÈç¹ûÖØÆôkeeper¾Í²»»á³öÎÊÌâ
-	// ÎÊÌâµÄ¾ßÌå±íÏÖÊÇdumpÊ±nodeµÄkÖµÄªÃûÆæÃî±»É¾³ı
-	// ÒÔ¼°stb£¨ÄÚ´æ½á¹¹¶¼ÄÜ¶¯£¿£©ÄªÃûÔö¼ÓĞÂµÄ±íÏî
+	// todo å¤„ç†å­—ç¬¦ä¸²(åˆ é™¤ï¼ŒæŸ¥è¯¢ï¼Œåˆ é™¤)è¦é™åˆ¶æœ€å¤§é•¿åº¦
+	// todo ä½¿ç”¨ä»¥å‰ç”¨è¿‡çš„å—ä¼šå‡ºç°é—®é¢˜ï¼Œä½†æ˜¯å¦‚æœé‡å¯keeperå°±ä¸ä¼šå‡ºé—®é¢˜
+	// é—®é¢˜çš„å…·ä½“è¡¨ç°æ˜¯dumpæ—¶nodeçš„kå€¼è«åå¥‡å¦™è¢«åˆ é™¤
+	// ä»¥åŠstbï¼ˆå†…å­˜ç»“æ„éƒ½èƒ½åŠ¨ï¼Ÿï¼‰è«åå¢åŠ æ–°çš„è¡¨é¡¹
 
 	using str = std::string;
 
-	constexpr int BUFFSIZE = 4096; // ½Úµãbuffer´óĞ¡
-	constexpr int MAXSTRSIZE = 20; // ×Ö·û´®×î´ó³¤¶È£¬È»¶ø²¢Ã»ÓĞÓÃµ½
-	constexpr address NULLADDR = 0; // NULLÔÚÊı¾İ¿âµØÖ·ÖĞµÄ±íÊ¾
-	constexpr int N = (BUFFSIZE - 16) / 12; // ½ÚµãÄÜ·ÅÏÂµÄÕûĞÍkeyÊı
-	constexpr int MINLF = (N + 1) / 2; // Ò¶½Úµã×îĞ¡ÕûĞÍkeyÊı
-	constexpr int MINNLF = MINLF - 1; // ·ÇÒ¶½Úµã×îĞ¡ÕûĞÍkeyÊı
-	constexpr int HALFSTR = (BUFFSIZE - 16) / 2; // ½Úµã×îĞ¡×Ö·û´®Õ¼ÓÃ
+	constexpr int BUFFSIZE = 4096; // èŠ‚ç‚¹bufferå¤§å°
+	constexpr int MAXSTRSIZE = 20; // å­—ç¬¦ä¸²æœ€å¤§é•¿åº¦ï¼Œç„¶è€Œå¹¶æ²¡æœ‰ç”¨åˆ°
+	constexpr address NULLADDR = 0; // NULLåœ¨æ•°æ®åº“åœ°å€ä¸­çš„è¡¨ç¤º
+	constexpr int N = (BUFFSIZE - 16) / 12; // èŠ‚ç‚¹èƒ½æ”¾ä¸‹çš„æ•´å‹keyæ•°
+	constexpr int MINLF = (N + 1) / 2; // å¶èŠ‚ç‚¹æœ€å°æ•´å‹keyæ•°
+	constexpr int MINNLF = MINLF - 1; // éå¶èŠ‚ç‚¹æœ€å°æ•´å‹keyæ•°
+	constexpr int HALFSTR = (BUFFSIZE - 16) / 2; // èŠ‚ç‚¹æœ€å°å­—ç¬¦ä¸²å ç”¨
 
 	constexpr static page_address FLAG_POS = 0;
 	constexpr static page_address FLAG_NUM = 4;
@@ -38,16 +38,16 @@ namespace db {
 	4[flag]+4[num]+4*n[key]+8*(n+1)[addr]=BUFFSIZE
 	*/
 
-	// bitmap¹¦ÄÜ
+	// bitmapåŠŸèƒ½
 	struct Bitmap : VirtualPage
 	{
 		std::vector<unsigned char> _bits;
 
-		inline Bitmap(container_type &container, size_t first, size_t last, Keeper &keeper, address addr, address length = PAGE_SIZE) : VirtualPage(container, first, last, keeper, addr, length) {
+		inline Bitmap(Keeper &keeper, size_t flags) : VirtualPage(keeper, flags) {
 			_bits.resize(4096);
 		}
 
-		void Set(size_t x) { //ÉèÖÃÎª1
+		void Set(size_t x) { //è®¾ç½®ä¸º1
 			int index = x / 8;
 			int temp = x % 8;
 			_bits[index] |= (1 << temp);
@@ -83,20 +83,16 @@ namespace db {
 		}
 
 		virtual bool load() {
-			reactivate(true);
 			for (int i = 0;i < 4096;i++) {
 				_bits[i] = read<unsigned char>(i);
 			}
-			unpin();
 			return true;
 		}
 
 		virtual bool dump() {
-			reactivate(true);
 			for (int i = 0;i < 4096;i++) {
 				write(_bits[i], i);
 			}
-			unpin();
 			return true;
 		}
 
@@ -110,13 +106,13 @@ namespace db {
 	{
 	public:
 		int flag;
-		// 0 Î´Ê¹ÓÃ 1 Ò¶½Úµã 2 Ö¸ÏòÒ¶½Úµã 3 Ö¸Ïò·ÇÒ¶½Úµã 
+		// 0 æœªä½¿ç”¨ 1 å¶èŠ‚ç‚¹ 2 æŒ‡å‘å¶èŠ‚ç‚¹ 3 æŒ‡å‘éå¶èŠ‚ç‚¹ 
 		int n;
 		std::vector<T> k;
 		std::vector<address> a;
 		address next;
 
-		inline Node(container_type &container, size_t first, size_t last, Keeper &keeper, address addr, address length = PAGE_SIZE) : VirtualPage(container, first, last, keeper, addr, length) {
+		inline Node(Keeper &keeper, size_t flags) : VirtualPage(keeper, flags) {
 			flag = 1;
 			n = 0;
 			resize();
@@ -124,7 +120,6 @@ namespace db {
 		}
 
 		virtual bool load() {
-			reactivate(true);
 			flag = read<int>(FLAG_POS);
 			n = read<int>(FLAG_NUM);
 			next = read<address>(FLAG_NEXT);
@@ -139,12 +134,10 @@ namespace db {
 			if (flag != 1) {
 				a[n] = next;
 			}
-			unpin();
 			return true;
 		}
 
 		virtual bool dump() {
-			reactivate(true);		
 			write(flag, FLAG_POS);
 			write(n, FLAG_NUM);
 			if (flag == 1) write(next, FLAG_NEXT);
@@ -156,7 +149,6 @@ namespace db {
 				write(a[i], cur);
 				cur += sizeof(address);
 			}
-			unpin();
 			return true;
 		}
 
@@ -235,7 +227,7 @@ namespace db {
 		std::vector<address> a;
 		address next;
 
-		inline Node(container_type &container, size_t first, size_t last, Keeper &keeper, address addr, address length = PAGE_SIZE) : VirtualPage(container, first, last, keeper, addr, length) {
+		inline Node(Keeper &keeper, size_t flags) : VirtualPage(keeper, flags) {
 			flag = 1;
 			n = 0;
 			resize();
@@ -243,7 +235,6 @@ namespace db {
 		}
 
 		virtual bool load() {
-			reactivate(true);
 			flag = read<int>(FLAG_POS);
 			n = read<int>(FLAG_NUM);
 			next = read<address>(FLAG_NEXT);
@@ -260,12 +251,10 @@ namespace db {
 			if (flag != 1) {
 				a[n] = next;
 			}
-			unpin();
 			return true;
 		}
 
 		virtual bool dump() {
-			reactivate(true);
 			write(flag, FLAG_POS);
 			write(n, FLAG_NUM);
 			if (flag == 1) write(next, FLAG_NEXT);
@@ -278,7 +267,6 @@ namespace db {
 				write(a[i], cur);
 				cur += sizeof(address);
 			}
-			unpin();
 			return true;
 		}
 
@@ -323,7 +311,7 @@ namespace db {
 			return cur > BUFFSIZE;
 		}
 
-		// ÁôÏÂµÄ×Ö·û´®Õ¼ÓÃÒª³¬¹ıÒ»°ë
+		// ç•™ä¸‹çš„å­—ç¬¦ä¸²å ç”¨è¦è¶…è¿‡ä¸€åŠ
 		int split(str key) {
 			int r = n;
 			for (int i = 0;i < n;i++) {
@@ -335,7 +323,7 @@ namespace db {
 			int cur = 0;
 			for (int i = 0;i < r;i++) {
 				cur += 9 + static_cast<int>(k[i].length());
-				if (cur > HALFSTR) return n - i; // n + 1 - (i + 1); ×ÜÊı - ±£ÁôµÄÊıÄ¿
+				if (cur > HALFSTR) return n - i; // n + 1 - (i + 1); æ€»æ•° - ä¿ç•™çš„æ•°ç›®
 			}
 			cur += 9 + static_cast<int>(key.length());
 			if (cur > HALFSTR) return n - r;
@@ -372,10 +360,10 @@ namespace db {
 			int cur = strsize();
 			int o = 0;
 			for (int i = 0;i < n;i++) {
-				if (direct) cur -= static_cast<int>(k[n - 1 - i].length()) + 9; // ´Ó´óµ½Ğ¡
+				if (direct) cur -= static_cast<int>(k[n - 1 - i].length()) + 9; // ä»å¤§åˆ°å°
 				else cur -= static_cast<int>(k[i].length()) + 9;
 				if (cur < HALFSTR) {
-					o = i; // breakµÄÊ±ºò Ñ­»·ÁËi+1´ÎÊı µ«´ËÊ±ÒÑ¾­²»·ûºÏÌõ¼ş ËùÒÔÓÃÉÏÒ»´Îi
+					o = i; // breakçš„æ—¶å€™ å¾ªç¯äº†i+1æ¬¡æ•° ä½†æ­¤æ—¶å·²ç»ä¸ç¬¦åˆæ¡ä»¶ æ‰€ä»¥ç”¨ä¸Šä¸€æ¬¡i
 					break;
 				}
 			}
@@ -383,24 +371,24 @@ namespace db {
 		}
 
 		int move(bool direct, str key) {
-			int remain = strsize(); // ½ÚµãÊ£Óà´óĞ¡
-			int cur = static_cast<int>(key.length()) + 9; // ĞÂ½Úµã¼ÓÈëµÄ´óĞ¡
+			int remain = strsize(); // èŠ‚ç‚¹å‰©ä½™å¤§å°
+			int cur = static_cast<int>(key.length()) + 9; // æ–°èŠ‚ç‚¹åŠ å…¥çš„å¤§å°
 			int o = 0;
 			for (int i = 0;i < n;i++) {
-				if (cur >= HALFSTR || remain < HALFSTR) { // ĞÂ½Úµã²»ÄÜ¼ÓÈë³¬¹ıÒ»°ë ¾É½Úµã²»ÄÜ¼õÉÙ³¬¹ıÒ»°ë
+				if (cur >= HALFSTR || remain < HALFSTR) { // æ–°èŠ‚ç‚¹ä¸èƒ½åŠ å…¥è¶…è¿‡ä¸€åŠ æ—§èŠ‚ç‚¹ä¸èƒ½å‡å°‘è¶…è¿‡ä¸€åŠ
 					o = i;
 					break;
 				}
 				int t;
-				if (direct) t = static_cast<int>(k[n - 1 - i].length()) + 9;  // ´Ó´óµ½Ğ¡
+				if (direct) t = static_cast<int>(k[n - 1 - i].length()) + 9;  // ä»å¤§åˆ°å°
 				else  t = static_cast<int>(k[i].length()) + 9;
 				cur += t;
 				remain -= t;
 			}
 			return o;
-			// i·ÅÔÚ¿ªÍ·ÊÇÑ­»·µÄ´ÎÊı
-			// Ñ­»·1´Îºóbreak£¬Ôò±íÊ¾Ö»ÄÜÒÆÈëÒ»¸ö½Úµã
-			// Ñ­»·2´Îºóbreak£¬Ö¤Ã÷Ö»ÄÜÑ­»·1´ÎÊÇ·ûºÏÒªÇóµÄ£¬½ÚµãËğÊ§2¸ökey
+			// iæ”¾åœ¨å¼€å¤´æ˜¯å¾ªç¯çš„æ¬¡æ•°
+			// å¾ªç¯1æ¬¡åbreakï¼Œåˆ™è¡¨ç¤ºåªèƒ½ç§»å…¥ä¸€ä¸ªèŠ‚ç‚¹
+			// å¾ªç¯2æ¬¡åbreakï¼Œè¯æ˜åªèƒ½å¾ªç¯1æ¬¡æ˜¯ç¬¦åˆè¦æ±‚çš„ï¼ŒèŠ‚ç‚¹æŸå¤±2ä¸ªkey
 		}
 	};
 
@@ -409,68 +397,74 @@ namespace db {
 	{
 	public:
 
-		std::vector<std::shared_ptr<Node<T>>> objlst; // ´æ·ÅËùÓĞ½ÚµãµÄÖ¸Õë
-		std::shared_ptr<Bitmap> bits;
-		std::unordered_map<address, int> stb; // ¸ù¾İÊı¾İ¿âµØÖ·¼ìË÷ÔÚobjlstÖĞµÄÆ«ÒÆ 
-		std::set<int> ftb; // ´æ·ÅËùÓĞobjlstÖĞ¿ÕÏĞµÄÆ«ÒÆ setÖĞÊı¾İ×Ô¶¯ÅÅĞò ±ãÓÚ»ØÊÕ¿Õ¼ä
+		std::vector<PagePtr<Node<T>>> objlst; // å­˜æ”¾æ‰€æœ‰èŠ‚ç‚¹çš„æŒ‡é’ˆ
+		PagePtr<Bitmap> bits;
+		std::unordered_map<address, int> stb; // æ ¹æ®æ•°æ®åº“åœ°å€æ£€ç´¢åœ¨objlstä¸­çš„åç§» 
+		std::set<int> ftb; // å­˜æ”¾æ‰€æœ‰objlstä¸­ç©ºé—²çš„åç§» setä¸­æ•°æ®è‡ªåŠ¨æ’åº ä¾¿äºå›æ”¶ç©ºé—´
 		Keeper* kp;
 
-		address root; // root½ÚµãµÄÊı¾İ¿âµØÖ· ÒòÎªroot½ÚµãÒ²»á±ä¶¯
+		address root; // rootèŠ‚ç‚¹çš„æ•°æ®åº“åœ°å€ å› ä¸ºrootèŠ‚ç‚¹ä¹Ÿä¼šå˜åŠ¨
 		address pointroot;
 
-		// Êı¾İ¿âµØÖ· -> ½ÚµãÖ¸Õë ¿ÉÄÜ·µ»ØNULL
+		// æ•°æ®åº“åœ°å€ -> èŠ‚ç‚¹æŒ‡é’ˆ å¯èƒ½è¿”å›NULL
 		Node<T>* getnode(address addr) {
 			if (addr == NULLADDR) return NULL;
 			return objlst[stb[addr]].get();
 		}
 
-		// ½ÚµãÖ¸Õë ´æ·ÅÔÚobjlstÖĞ -> ·ÖÅäµÄÊı¾İ¿âµØÖ·
-		void setnode(std::shared_ptr<Node<T>> nd, address addr) {
+		// èŠ‚ç‚¹æŒ‡é’ˆ å­˜æ”¾åœ¨objlstä¸­ -> åˆ†é…çš„æ•°æ®åº“åœ°å€
+		void setnode(PagePtr<Node<T>> &&nd, address addr) {
 			int key = 0;
-			if (ftb.size() != 0) { // Èç¹ûÓĞ¿ÕÏĞ¿Õ¼ä Ôò´ÓsetÖĞ»ñÈ¡Æ«ÒÆ
+			if (ftb.size() != 0) { // å¦‚æœæœ‰ç©ºé—²ç©ºé—´ åˆ™ä»setä¸­è·å–åç§»
 				key = *(ftb.begin());
 				ftb.erase(key);
-				objlst[key] = nd;
+				objlst[key] = std::move(nd);
 			}
 			else {
 				key = static_cast<int>(objlst.size());
-				objlst.push_back(nd);
+				objlst.push_back(std::move(nd));
 			}
 			stb[addr] = key;
 		}
 
 		void erase_node(address addr) {
-			std::cout << "erasenode:" << addr << std::endl;
-			Node<T>* nd = getnode(addr);
-			nd->flag = 0;
-			nd->close();
+			
+			//nd->close();
 			//nd->clear();
 
-			//bits->Reset(addr-1);
+			bits->Reset(addr-1);
 			int i = stb[addr];
 			stb.erase(addr);
+
+			//objlst[i].pin();
+			std::cout << "erasenode:" << addr << std::endl;
+			//Node<T>* nd = getnode(addr);
+			//nd->flag = 0;
+			//nd->close();
+			objlst[i].unpin();
 			objlst[i].reset();
+			kp->loosen(addr*PAGE_SIZE + INDEX_SEG_BEGIN);
 			//objlst[i] = NULL;
 			ftb.insert(i);
 		}
 
-		// ¸ù¾İË³Ğò¿ç½Úµã²åÈë
+		// æ ¹æ®é¡ºåºè·¨èŠ‚ç‚¹æ’å…¥
 		void span_insert(Node<T>* a, Node<T>* b, T k, address v, int o) {
 			int s = a->isleaf();
 			int i = o - a->n;
-			if (i < 0) { // Ô­½Úµã
+			if (i < 0) { // åŸèŠ‚ç‚¹
 				a->k[o] = k;
 				a->a[o + s] = v;
 			}
-			else {		 // ĞÂ½Úµã
+			else {		 // æ–°èŠ‚ç‚¹
 				b->k[i] = k;
 				b->a[i + s] = v;
 			}
 		}
 
-		// ²éÕÒkÔÚ½ÚµãÔ­Êı×éÖĞµÄÎ»ÖÃ
+		// æŸ¥æ‰¾kåœ¨èŠ‚ç‚¹åŸæ•°ç»„ä¸­çš„ä½ç½®
 		int search_index(Node<T>* nd, T k) {
-			int r = nd->n; // Ä¬ÈÏÖ¸Ïò×îÓÒ¶Ë
+			int r = nd->n; // é»˜è®¤æŒ‡å‘æœ€å³ç«¯
 			for (int i = 0;i < nd->n;i++) {
 				if (k < nd->k[i]) {
 					r = i;
@@ -480,15 +474,15 @@ namespace db {
 			return r;
 		}
 
-		// ²éÕÒ·ÇÒ¶½ÚµãÏÂ×î×ó¶ËÒ¶½ÚµãµÄµÚÒ»¸ökey
+		// æŸ¥æ‰¾éå¶èŠ‚ç‚¹ä¸‹æœ€å·¦ç«¯å¶èŠ‚ç‚¹çš„ç¬¬ä¸€ä¸ªkey
 		T search_left(Node<T>* nd) {
 			Node<T>* r = nd;
-			while (r->flag != 1) // Ö±µ½µ½´ïÒ¶½Úµã
+			while (r->flag != 1) // ç›´åˆ°åˆ°è¾¾å¶èŠ‚ç‚¹
 				r = getnode(r->a[0]);
-			return r->k[0];  // ¶¼·ÖÁÑ·ÇÒ¶½ÚµãÁË×î×ó¶Ë±ØÈ»ÓĞÖµ
+			return r->k[0];  // éƒ½åˆ†è£‚éå¶èŠ‚ç‚¹äº†æœ€å·¦ç«¯å¿…ç„¶æœ‰å€¼
 		}
 
-		// ½ÚµãÓĞ×ã¹»µÄ¿Õ¼ä²åÈëĞÂÔªËØ
+		// èŠ‚ç‚¹æœ‰è¶³å¤Ÿçš„ç©ºé—´æ’å…¥æ–°å…ƒç´ 
 		void direct_insert(Node<T>* nd, T k, address v) {
 			int s = nd->isleaf();
 			int r = search_index(nd, k);
@@ -505,7 +499,7 @@ namespace db {
 			nd->a[r + s] = v;
 		}
 
-		// ½ÚµãÊı¾İ³¬¹ıN£¬·µ»ØĞÂ½ÚµãµÄµØÖ·
+		// èŠ‚ç‚¹æ•°æ®è¶…è¿‡Nï¼Œè¿”å›æ–°èŠ‚ç‚¹çš„åœ°å€
 		address split_insert(Node<T>* nd, T k, address v) {
 			int s = nd->isleaf();
 			int r = search_index(nd, k);
@@ -514,26 +508,26 @@ namespace db {
 			Node<T>* nnd = getnode(addr);
 
 			nnd->n = nd->split(k);
-			nnd->flag = nd->flag; // ·ÖÁÑ½ÚµãÎ»ÓÚÍ¬Ò»²ã
+			nnd->flag = nd->flag; // åˆ†è£‚èŠ‚ç‚¹ä½äºåŒä¸€å±‚
 			nnd->resize();
 
 			int ln = nd->n;
 			nd->n = ln + 1 - nnd->n;
 
-			for (int i = ln;i > r;i--) // ±Èkey´óµÄÓÒÒÆÒ»Î»
+			for (int i = ln;i > r;i--) // æ¯”keyå¤§çš„å³ç§»ä¸€ä½
 				span_insert(nd, nnd, nd->k[i - 1], nd->a[i + s - 1], i);
 			span_insert(nd, nnd, k, v, r);
-			for (int i = r - 1;i > nd->n - 1;i--) // ±ÈkeyĞ¡µÄk¿ÉÄÜÒªÇ¨ÒÆµ½ĞÂµÄ½Úµã
+			for (int i = r - 1;i > nd->n - 1;i--) // æ¯”keyå°çš„kå¯èƒ½è¦è¿ç§»åˆ°æ–°çš„èŠ‚ç‚¹
 				span_insert(nd, nnd, nd->k[i], nd->a[i + s], i);
 
-			if (s == 0) { // Á´±í½Úµã²åÈë
+			if (s == 0) { // é“¾è¡¨èŠ‚ç‚¹æ’å…¥
 				nnd->next = nd->next;
 				nd->next = addr;
 			}
 			else {
 				/*
-				Ô­À´ÓĞ3¸ö¼ü·ÖÁÑÖ®ºóÎª2+1£¬ÒòÎªĞÂµÄ½Úµã²»ÄÜÓĞNULL£¬ĞèÒªÉ¾³ıÒ»¸ökey£¬°ÑËüµÄÓÒ¶Ë×÷ÎªĞÂ½ÚµãµÄ×ó¶Ë
-				°ÑÔ­½Úµã×îÓÒ¶ËµÄkeyÉ¾³ı£¬p·Åµ½ĞÂ½Úµã×î×ó¶Ë
+				åŸæ¥æœ‰3ä¸ªé”®åˆ†è£‚ä¹‹åä¸º2+1ï¼Œå› ä¸ºæ–°çš„èŠ‚ç‚¹ä¸èƒ½æœ‰NULLï¼Œéœ€è¦åˆ é™¤ä¸€ä¸ªkeyï¼ŒæŠŠå®ƒçš„å³ç«¯ä½œä¸ºæ–°èŠ‚ç‚¹çš„å·¦ç«¯
+				æŠŠåŸèŠ‚ç‚¹æœ€å³ç«¯çš„keyåˆ é™¤ï¼Œpæ”¾åˆ°æ–°èŠ‚ç‚¹æœ€å·¦ç«¯
 				*/
 				nnd->a[0] = nd->a[nd->n];
 				nd->n--;
@@ -543,7 +537,7 @@ namespace db {
 			return addr;
 		}
 
-		// Ö±½ÓÉ¾³ı£¬×î¼òµ¥µÄÇé¿ö
+		// ç›´æ¥åˆ é™¤ï¼Œæœ€ç®€å•çš„æƒ…å†µ
 		void direct_delete(Node<T>* nd, T k) {
 			int s = nd->isleaf();
 			int r = 0;
@@ -563,13 +557,13 @@ namespace db {
 			nd->resize();
 		}
 
-		// b´«ÈëÒªÉ¾³ıµÄ½Úµã ·µ»ØÓÒ±ß½Úµã×îĞ¡Öµ(Ìá¹©¸øÉÏ²ãĞŞ¸Ä)
+		// bä¼ å…¥è¦åˆ é™¤çš„èŠ‚ç‚¹ è¿”å›å³è¾¹èŠ‚ç‚¹æœ€å°å€¼(æä¾›ç»™ä¸Šå±‚ä¿®æ”¹)
 		T resize_delete_leaf(Node<T>* a, Node<T>* b) {
 			bool direct = a->k[0] < b->k[0] ? true : false;
 			int la = a->n;
 			int lb = b->n;
 
-			int o = a->move(direct); // bĞèÒª²åÈëµÄÔªËØÊıÄ¿
+			int o = a->move(direct); // béœ€è¦æ’å…¥çš„å…ƒç´ æ•°ç›®
 			b->n += o;
 			b->resize();
 
@@ -586,11 +580,11 @@ namespace db {
 			}
 			else { //  b<-a
 				// 12->345 == -2 == 1->345 == 13->45
-				for (int i = 0;i < o;i++) { // aµÄÔªËØÌí¼Óµ½bÉÏ lb~lb+o-1 <- 0~o-1
+				for (int i = 0;i < o;i++) { // açš„å…ƒç´ æ·»åŠ åˆ°bä¸Š lb~lb+o-1 <- 0~o-1
 					b->k[lb + i] = a->k[i];
 					b->a[lb + i] = a->a[i];
 				}
-				for (int i = 0;i < la - o;i++) { // aÄÚ²¿Ìî²¹¿ÕÎ» 0~la-o-1 <- o~la-1
+				for (int i = 0;i < la - o;i++) { // aå†…éƒ¨å¡«è¡¥ç©ºä½ 0~la-o-1 <- o~la-1
 					a->k[i] = a->k[i + o];
 					a->a[i] = a->a[i + o];
 				}
@@ -603,7 +597,7 @@ namespace db {
 			else return a->k[0];
 		}
 
-		// ¹Ø¼üÔÚÓÚÕıÈ·²åÈëĞÂÔöµÄ¼üÖµ ÒÔ¼°ÏòÉÏ·µ»ØµÄ¼üÖµ
+		// å…³é”®åœ¨äºæ­£ç¡®æ’å…¥æ–°å¢çš„é”®å€¼ ä»¥åŠå‘ä¸Šè¿”å›çš„é”®å€¼
 		T resize_delete_nonleaf(Node<T>* a, Node<T>* b) {
 			bool direct = a->k[0] < b->k[0] ? true : false;
 
@@ -615,24 +609,24 @@ namespace db {
 
 			if (direct) { // a->b
 				// 10 20 30 -> 40 50 == 10 20 30 -> 50
-				// 10 20 30 -> (NULL) 35 50 == 10 -> 30 35 50 (20ÊÇÖ±½Ó¶ªÆú)
+				// 10 20 30 -> (NULL) 35 50 == 10 -> 30 35 50 (20æ˜¯ç›´æ¥ä¸¢å¼ƒ)
 				tp = search_left(getnode(b->a[0]));
 				o = a->move(direct, tp);
 
 				b->n += o;
 				b->resize();
 
-				for (int i = 0;i < lb;i++) { // bÔ­ÓĞÖµºóÒÆ  o~lb+o-1 <- 0~lb-1
+				for (int i = 0;i < lb;i++) { // båŸæœ‰å€¼åç§»  o~lb+o-1 <- 0~lb-1
 					b->k[lb + o - 1 - i] = b->k[lb - 1 - i];
 					b->a[lb + o - i] = b->a[lb - i];
 				}
-				b->k[o - 1] = tp; // ÒòÎª×ó±ß´ú±í·ÖÖ§ÏÂ×îĞ¡µÄÖµ
+				b->k[o - 1] = tp; // å› ä¸ºå·¦è¾¹ä»£è¡¨åˆ†æ”¯ä¸‹æœ€å°çš„å€¼
 				b->a[o] = b->a[0];
-				for (int i = 0;i < o - 1;i++) { // ÒÆ¶¯key 0~o-2 <- la-o+1~la-1
+				for (int i = 0;i < o - 1;i++) { // ç§»åŠ¨key 0~o-2 <- la-o+1~la-1
 					b->k[o - 2 - i] = a->k[la - 1 - i];
 				}
 				T res = a->k[la - o];
-				for (int i = 0;i < o;i++) {  // ÒÆ¶¯µØÖ· 
+				for (int i = 0;i < o;i++) {  // ç§»åŠ¨åœ°å€ 
 					b->a[o - 1 - i] = a->a[la - i];
 				}
 
@@ -643,7 +637,7 @@ namespace db {
 			}
 			else { //  b<-a
 				// 10 20 -> 30 40 50 == 10 ->30 40 50
-				// 10 25 (NULL) -> 30 40 50 == 10 25 30 ->  50 ¶ªÆú(40)  
+				// 10 25 (NULL) -> 30 40 50 == 10 25 30 ->  50 ä¸¢å¼ƒ(40)  
 				tp = search_left(getnode(a->a[0]));
 				o = a->move(direct, tp);
 
@@ -651,11 +645,11 @@ namespace db {
 				b->resize();
 
 				b->k[lb] = tp;
-				for (int i = 0;i < o - 1;i++) { // ÒÆ¶¯key lb+1~lb+o-1 <- 0~o-2 o-2
+				for (int i = 0;i < o - 1;i++) { // ç§»åŠ¨key lb+1~lb+o-1 <- 0~o-2 o-2
 					b->k[lb + 1 + i] = a->k[i];
 				}
 				T res = a->k[o - 1];
-				for (int i = 0;i < o;i++) { // ÒÆ¶¯µØÖ·  lb+1~lb+o <- 0~o-1 0-1
+				for (int i = 0;i < o;i++) { // ç§»åŠ¨åœ°å€  lb+1~lb+o <- 0~o-1 0-1
 					b->a[lb + 1 + i] = a->a[i];
 				}
 
@@ -673,7 +667,7 @@ namespace db {
 			}
 		}
 
-		// ÓÉDeleteÀ´ÊÍ·Å½Úµã delete¶ÔÏó Ö¸ÕëÖÃNULL£¬ĞŞ¸ÄftbµÈ
+		// ç”±Deleteæ¥é‡Šæ”¾èŠ‚ç‚¹ deleteå¯¹è±¡ æŒ‡é’ˆç½®NULLï¼Œä¿®æ”¹ftbç­‰
 		bool merge_delete_leaf(Node<T>* a, Node<T>* b) {
 			bool direct = a->k[0] < b->k[0] ? true : false;
 			if (a->merge(b->size())) return false;
@@ -692,7 +686,7 @@ namespace db {
 			x->n += ly;
 			x->resize();
 
-			for (int i = 0;i < ly;i++) { // yÔ­ÓĞÖµºóÒÆ lx~lx+ly-1 ~ 0~ly-1 
+			for (int i = 0;i < ly;i++) { // yåŸæœ‰å€¼åç§» lx~lx+ly-1 ~ 0~ly-1 
 				x->k[lx + i] = y->k[i];
 				x->a[lx + i] = y->a[i];
 			}
@@ -716,7 +710,7 @@ namespace db {
 			}
 			T st = search_left(getnode(y->a[0]));
 			if (a->merge(b->size(), st)) return false;
-			// 1 2 -> 4 5 == 1 2 -> 5 ºÍresize´úÂëÀ×Í¬ Ö»ÊÇÒªÈ«²¿ÒÆ¶¯×ß
+			// 1 2 -> 4 5 == 1 2 -> 5 å’Œresizeä»£ç é›·åŒ åªæ˜¯è¦å…¨éƒ¨ç§»åŠ¨èµ°
 			// 1 2 3 (NULL)->5 ==  1235
 			int lx = x->n;
 			int ly = y->n;
@@ -724,10 +718,10 @@ namespace db {
 			x->resize();
 
 			x->k[lx] = st;
-			for (int i = 0;i < ly;i++) { // ÒÆ¶¯key
+			for (int i = 0;i < ly;i++) { // ç§»åŠ¨key
 				x->k[lx + 1 + i] = y->k[i];
 			}
-			for (int i = 0;i < ly + 1;i++) { // ÒÆ¶¯µØÖ·
+			for (int i = 0;i < ly + 1;i++) { // ç§»åŠ¨åœ°å€
 				x->a[lx + 1 + i] = y->a[i];
 			}
 
@@ -772,10 +766,10 @@ namespace db {
 			std::cout << st;
 		}
 
-		// ²ÉÓÃÉî¶ÈÓÅÏÈ±éÀú
+		// é‡‡ç”¨æ·±åº¦ä¼˜å…ˆéå†
 		void print_nonleaf(Node<T>* nd, int level, int pd) {
 			for (int i = 0;i < nd->n + 1;i++) {
-				if (i != 0) print_space(level, pd); // µÚÒ»¸öÔªËØ²»ÓÃËõ½ø
+				if (i != 0) print_space(level, pd); // ç¬¬ä¸€ä¸ªå…ƒç´ ä¸ç”¨ç¼©è¿›
 
 				if (i != nd->n) std::cout << std::setw(pd) << std::left << nd->k[i] << "--+";
 				else {
@@ -797,37 +791,39 @@ namespace db {
 		}
 
 		//address s = SEGMENT_SIZE;
-		address s = Translator::segmentBegin(INDEX_SEG)*SEGMENT_SIZE;
+		address s = INDEX_SEG_BEGIN;
 
 		void loadbitmap() {
-			bits = kp->hold<Bitmap>(s, true, false);
+			bits = kp->hold<Bitmap>(s, false, true);
 			bits->load();
+			bits.unpin();
+			
 		}
 
-		bptree(Keeper* _k)  { // Ä¬ÈÏĞÂ½¨b+Ê÷
+		bptree(Keeper* _k) { // é»˜è®¤æ–°å»ºb+æ ‘
 			kp = _k;
 			loadbitmap();
 			create();
 		}
 
-		bptree(Keeper* _k ,address addr) { // ´«ÈëÊı¾İ¿âµØÖ·Ôò½øĞĞ¶ÁÈ¡
+		bptree(Keeper* _k, address addr) { // ä¼ å…¥æ•°æ®åº“åœ°å€åˆ™è¿›è¡Œè¯»å–
 			kp = _k;
 			loadbitmap();
-			if (load(addr)) std::cout << "¶ÁÈ¡Ë÷Òı³É¹¦" << std::endl;
+			if (load(addr)) std::cout << "è¯»å–ç´¢å¼•æˆåŠŸ" << std::endl;
 			else {
 				create();
-				std::cout << "Ìá¹©µØÖ·ÎŞĞ§£¬ĞÂ½¨Êı¾İ¿â" << pointroot << std::endl;
+				std::cout << "æä¾›åœ°å€æ— æ•ˆï¼Œæ–°å»ºæ•°æ®åº“" << pointroot << std::endl;
 			}
 		}
 
-		// ĞÂ½¨½Úµã²¢·µ»ØÊı¾İ¿âµØÖ·
+		// æ–°å»ºèŠ‚ç‚¹å¹¶è¿”å›æ•°æ®åº“åœ°å€
 		address newnode() {
-			std::shared_ptr<Node<T>> r = NULL;
 			int f = bits->Find();
 			bits->Set(f);
-			f++;//±Ü¿ª0ÓÃÓÚ±£´æbitmap
-			std::shared_ptr<Node<T>> p = kp->hold<Node<T>>(f*PAGE_SIZE + s, true, false);
-			setnode(p, f);
+			f++;//é¿å¼€0ç”¨äºä¿å­˜bitmap
+			PagePtr<Node<T>> p = kp->hold<Node<T>>(f*PAGE_SIZE + s, false, true);
+			p.unpin();
+			setnode(std::move(p), f);
 			std::cout << "newnode:" << f << std::endl;
 
 			//if (p == NULL) return SEGMENT_SIZE;
@@ -835,21 +831,24 @@ namespace db {
 			return f;
 		}
 
-		// ¶ÁÈ¡½ÚµãÄÚÈİ²¢´æÈë¿ØÖÆ½á¹¹
+		// è¯»å–èŠ‚ç‚¹å†…å®¹å¹¶å­˜å…¥æ§åˆ¶ç»“æ„
 		bool loadnode(address addr) {
-			std::shared_ptr<Node<T>> p = kp->hold<Node<T>>(addr*PAGE_SIZE + s,true,false);
-			
-			//if (p->check()) return false;
-			//else {
+			PagePtr<Node<T>> p = kp->hold<Node<T>>(addr*PAGE_SIZE + s, false, true);
 			std::cout << "loadnode:" << addr << std::endl;
 			p->load();
-			setnode(p, addr);
-			if (p->flag != 1) {
-				for (int i = 0;i < p->n + 1;i++) {
+			p.unpin();
+
+			//if (p->check()) return false;
+			//else {
+			
+			setnode(std::move(p), addr);
+			Node<T>* ps = getnode(addr);
+			if (ps->flag != 1) {
+				for (int i = 0;i < ps->n + 1;i++) {
 					//if (p->a[i] == NULLADDR) continue;
 					//if (!loadnode(p->a[i])) return false;
-					if (p->a[i] != NULLADDR) {
-						loadnode(p->a[i]);
+					if (ps->a[i] != NULLADDR) {
+						loadnode(ps->a[i]);
 					}
 				}
 			}
@@ -857,11 +856,11 @@ namespace db {
 			return true;
 		}
 
-		bool create() { // pprootÊ¼ÖÕ±£´æµ±Ç°root½ÚµãµÄµØÖ· ÒòÎªroot½Úµã»á±ä¶¯
+		bool create() { // pprootå§‹ç»ˆä¿å­˜å½“å‰rootèŠ‚ç‚¹çš„åœ°å€ å› ä¸ºrootèŠ‚ç‚¹ä¼šå˜åŠ¨
 			pointroot = newnode();
 			root = newnode();
 			if (pointroot == SEGMENT_SIZE || root == SEGMENT_SIZE) {
-				std::cout << "ĞÂ½¨Ë÷ÒıÊ§°Ü£¬Ã»ÓĞ¿ÕÏĞ½Úµã" << std::endl;
+				std::cout << "fail to create index" << std::endl;
 				return false;
 			}
 			Node<T>* pproot = getnode(pointroot);
@@ -869,8 +868,8 @@ namespace db {
 			proot->flag = 2;
 			pproot->flag = 1;
 			pproot->next = root;
-			
-			std::cout << "ĞÂ½¨Ë÷Òı³É¹¦" << std::endl;
+
+			std::cout << "æ–°å»ºç´¢å¼•æˆåŠŸ" << std::endl;
 			return true;
 		}
 
@@ -887,8 +886,12 @@ namespace db {
 			Node<T>* pproot = getnode(pointroot);
 			pproot->next = root;
 			for (auto it = objlst.begin();it != objlst.end();++it) {
-				if (*it != NULL) (*it)->close();
+				if (*it != NULL) {
+					(*it).pin();
+					(*it)->close();
+				}
 			}
+			bits.pin();
 			bits->close();
 			//bits->reset();
 		}
@@ -897,12 +900,12 @@ namespace db {
 			address res = NULLADDR;
 
 			Node<T>* p = getnode(root);
-			if (p->n == 0) return res; // root½Úµã¿ÉÄÜÎª¿Õ
+			if (p->n == 0) return res; // rootèŠ‚ç‚¹å¯èƒ½ä¸ºç©º
 
-			while (p->flag != 1) { // Èç¹ûp²»ÊÇÒ¶½Úµã£¬¼ÌĞøÏòÏÂÕÒ
+			while (p->flag != 1) { // å¦‚æœpä¸æ˜¯å¶èŠ‚ç‚¹ï¼Œç»§ç»­å‘ä¸‹æ‰¾
 				int r = search_index(p, key);
 				p = getnode(p->a[r]);
-				if (p == NULL) break; // ¿¼ÂÇroot½Úµã×ó½Úµã¿ÉÄÜÎªNUL
+				if (p == NULL) break; // è€ƒè™‘rootèŠ‚ç‚¹å·¦èŠ‚ç‚¹å¯èƒ½ä¸ºNUL
 			}
 
 			if (p != NULL) {
@@ -921,8 +924,8 @@ namespace db {
 
 			Node<T>* ndroot = getnode(root);
 
-			if (ndroot->n == 0) {	// root½ÚµãÎª¿Õ¾ÍĞèÒªĞÂ½¨Ò¶½Úµã
-				address addr = newnode(); // Ä¿Ç°µØÖ·´ÓbtreeÖĞ»ñÈ¡£¬ÒÔºóÓ¦¸Ã´ÓnodeÖĞ»ñÈ¡Ëü°ó¶¨µÄµØÖ·
+			if (ndroot->n == 0) {	// rootèŠ‚ç‚¹ä¸ºç©ºå°±éœ€è¦æ–°å»ºå¶èŠ‚ç‚¹
+				address addr = newnode(); // ç›®å‰åœ°å€ä»btreeä¸­è·å–ï¼Œä»¥ååº”è¯¥ä»nodeä¸­è·å–å®ƒç»‘å®šçš„åœ°å€
 				Node<T>* nnd = getnode(addr);
 				nnd->flag = 1;
 				direct_insert(nnd, key, value);
@@ -933,7 +936,7 @@ namespace db {
 			}
 
 			Node<T>* p = ndroot;
-			std::stack<Node<T>*> path; // ´æ·Å²éÑ¯Â·¾¶
+			std::stack<Node<T>*> path; // å­˜æ”¾æŸ¥è¯¢è·¯å¾„
 
 			do {
 				path.push(p);
@@ -941,7 +944,7 @@ namespace db {
 				p = getnode(p->a[r]);
 			} while (p != NULL && p->flag != 1);
 
-			if (p == NULL) { // Èç¹ûpÎª¿ÕÖ»¿ÉÄÜÊÇÔÚroot½Úµã×î×ó¶Ë ĞÂ½¨Ò¶½Úµã µØÖ··ÅÈë¸ù½ÚµãÖĞ
+			if (p == NULL) { // å¦‚æœpä¸ºç©ºåªå¯èƒ½æ˜¯åœ¨rootèŠ‚ç‚¹æœ€å·¦ç«¯ æ–°å»ºå¶èŠ‚ç‚¹ åœ°å€æ”¾å…¥æ ¹èŠ‚ç‚¹ä¸­
 				address addr = newnode();
 				Node<T>* nnd = getnode(addr);
 				nnd->flag = 1;
@@ -951,24 +954,24 @@ namespace db {
 				return true;
 			}
 
-			if (!p->full(key)) { // Êı¾İ½ÚµãÄÜ·ÅÏÂ
+			if (!p->full(key)) { // æ•°æ®èŠ‚ç‚¹èƒ½æ”¾ä¸‹
 				direct_insert(p, key, value);
 				return true;
 			}
 
 			address v = split_insert(p, key, value);
-			T k = getnode(v)->k[0]; // Ò¶½ÚµãÌá¹©¸øÉÏÒ»²ãµÄkey,value
+			T k = getnode(v)->k[0]; // å¶èŠ‚ç‚¹æä¾›ç»™ä¸Šä¸€å±‚çš„key,value
 
-			// ½øÈëÍ¨ÓÃµÄÑ­»· ½«k,v²åÈëpÖĞ
+			// è¿›å…¥é€šç”¨çš„å¾ªç¯ å°†k,væ’å…¥pä¸­
 			do {
 				p = path.top();
 				path.pop();
 
 				if (p == ndroot && ndroot->a[0] == NULLADDR) {
 					/*
-					 ÀıÈç²åÈëµÄÖµÒ»Ö±Ôö´ó 1,2,3,4
-					 µ¼ÖÂ NULL [1] 1,2 [3] 3,4
-					 ËùÒÔ 1,2 [3] 3,4
+					 ä¾‹å¦‚æ’å…¥çš„å€¼ä¸€ç›´å¢å¤§ 1,2,3,4
+					 å¯¼è‡´ NULL [1] 1,2 [3] 3,4
+					 æ‰€ä»¥ 1,2 [3] 3,4
 					*/
 					ndroot->k[0] = k;
 					ndroot->a[0] = ndroot->a[1];
@@ -976,18 +979,18 @@ namespace db {
 					return true;
 				}
 
-				if (!p->full(k)) { // Èç¹û·ÇÒ¶½Úµã·ÅµÄÏÂ
+				if (!p->full(k)) { // å¦‚æœéå¶èŠ‚ç‚¹æ”¾çš„ä¸‹
 					direct_insert(p, k, v);
 					break;
 				}
 
-				// ÒÔÏÂÇé¿ö»¹Ğè¼ÌĞø·ÖÁÑ·ÇÒ¶½Úµã
+				// ä»¥ä¸‹æƒ…å†µè¿˜éœ€ç»§ç»­åˆ†è£‚éå¶èŠ‚ç‚¹
 
 				v = split_insert(p, k, v);
 				k = search_left(getnode(v));
 
 
-				if (p == ndroot) { // Èç¹ûÒª·ÖÁÑµÄÊÇroot½Úµã ĞèÒªĞÂ½¨root½Úµã
+				if (p == ndroot) { // å¦‚æœè¦åˆ†è£‚çš„æ˜¯rootèŠ‚ç‚¹ éœ€è¦æ–°å»ºrootèŠ‚ç‚¹
 					address addr = newnode();
 					Node<T>* nnd = getnode(addr);
 					nnd->n = 1;
@@ -1006,31 +1009,31 @@ namespace db {
 		}
 
 		bool delkey(T key) {
-			if (search(key) == NULLADDR) return false; // Èç¹ûÃ»ÓĞÕÒµ½keyÔò·µ»ØÃ»ÓĞÕÒµ½
+			if (search(key) == NULLADDR) return false; // å¦‚æœæ²¡æœ‰æ‰¾åˆ°keyåˆ™è¿”å›æ²¡æœ‰æ‰¾åˆ°
 
 			Node<T>* ndroot = getnode(root);
 			Node<T>* p = ndroot;
 
 			std::stack<Node<T>*> path;
-			std::stack<int> poffset; // »¹Òª¼ÇÂ¼×ßµÄÊÇÄÄ¸ö×Ó½Úµã
+			std::stack<int> poffset; // è¿˜è¦è®°å½•èµ°çš„æ˜¯å“ªä¸ªå­èŠ‚ç‚¹
 
 			do {
 				int r = search_index(p, key);
-				path.push(p); // µ±Ç°½ÚµãÈëÕ»
-				poffset.push(r); // Æ«ÒÆÈëÕ»
+				path.push(p); // å½“å‰èŠ‚ç‚¹å…¥æ ˆ
+				poffset.push(r); // åç§»å…¥æ ˆ
 				p = getnode(p->a[r]);
 			} while (p->flag != 1);
 
-			// µ½´ïÒ¶½Úµã
+			// åˆ°è¾¾å¶èŠ‚ç‚¹
 			direct_delete(p, key);
 			if (p->half()) return true;
 
-			Node<T>* pv = path.top(); //µ±Ç°½Úµã¸¸½Úµã
-			int pov = poffset.top(); //getnode(pv->addr[pov])¼´µ±Ç°½Úµã
+			Node<T>* pv = path.top(); //å½“å‰èŠ‚ç‚¹çˆ¶èŠ‚ç‚¹
+			int pov = poffset.top(); //getnode(pv->addr[pov])å³å½“å‰èŠ‚ç‚¹
 
 			if (pv == ndroot) {
-				if (pv->a[0] == NULLADDR) { // Èç¹ûÖ»ÓĞÒ»¸öÒ¶½Úµã£¬ÎŞÊÓ½ÚµãÊıÁ¿µÄÏŞÖÆ
-					if (p->n == 0) { // ²Á³ıÒ¶½Úµã
+				if (pv->a[0] == NULLADDR) { // å¦‚æœåªæœ‰ä¸€ä¸ªå¶èŠ‚ç‚¹ï¼Œæ— è§†èŠ‚ç‚¹æ•°é‡çš„é™åˆ¶
+					if (p->n == 0) { // æ“¦é™¤å¶èŠ‚ç‚¹
 						erase_node(pv->a[1]);
 						pv->n = 0;
 					}
@@ -1040,8 +1043,8 @@ namespace db {
 					int sign = 1 - pov;
 					Node<T>* other = getnode(pv->a[sign]);
 					if (merge_delete_leaf(other, p)) {
-						// Èç¹ûÁíÒ»¸ö½Úµãkey²»¹» ÔòºÏ²¢ ²¢¹ÒÔÚÓÒ±ß ±£³ÖÖ»ÓĞrootµÄ×ó½Úµã²ÅÄÜÎªNULL
-						// Ê¼ÖÕºÏ²¢µ½×ó±ß½Úµã
+						// å¦‚æœå¦ä¸€ä¸ªèŠ‚ç‚¹keyä¸å¤Ÿ åˆ™åˆå¹¶ å¹¶æŒ‚åœ¨å³è¾¹ ä¿æŒåªæœ‰rootçš„å·¦èŠ‚ç‚¹æ‰èƒ½ä¸ºNULL
+						// å§‹ç»ˆåˆå¹¶åˆ°å·¦è¾¹èŠ‚ç‚¹
 						erase_node(pv->a[1]);
 						pv->a[1] = pv->a[0];
 						pv->a[0] = NULLADDR;
@@ -1052,51 +1055,51 @@ namespace db {
 			}
 
 
-			int sign = pov == 0 ? 1 : pov - 1; //¼ÇÂ¼ÏàÁÚ½ÚµãµÄÎ»ÖÃ
-			int tp = pov == 0 ? 0 : pov - 1; // ¼ÇÂ¼ÉÏÒ»²ãÒªÉ¾³ıkeyµÄÎ»ÖÃ
+			int sign = pov == 0 ? 1 : pov - 1; //è®°å½•ç›¸é‚»èŠ‚ç‚¹çš„ä½ç½®
+			int tp = pov == 0 ? 0 : pov - 1; // è®°å½•ä¸Šä¸€å±‚è¦åˆ é™¤keyçš„ä½ç½®
 			Node<T>* other = getnode(pv->a[sign]);
 			if (merge_delete_leaf(other, p)) {
 				address eaddr = pv->a[tp + 1];
 				erase_node(eaddr);
-				if (pv == ndroot || pv->half(pv->k[tp])) {  // ÉÏÒ»²ãÊÇrootÔòÒ»¶¨ÄÜÖ±½ÓÉ¾³ı ÒòÎªrootµÄÌØÊâÇé¿öÒÑ¾­´¦Àí
+				if (pv == ndroot || pv->half(pv->k[tp])) {  // ä¸Šä¸€å±‚æ˜¯rootåˆ™ä¸€å®šèƒ½ç›´æ¥åˆ é™¤ å› ä¸ºrootçš„ç‰¹æ®Šæƒ…å†µå·²ç»å¤„ç†
 					direct_delete(pv, pv->k[tp]);
 					return true;
 				}
 			}
-			else { // resize¼´¿É£¬²»»áÉ¾³ı½Úµã£¬±È½Ï°²È«
+			else { // resizeå³å¯ï¼Œä¸ä¼šåˆ é™¤èŠ‚ç‚¹ï¼Œæ¯”è¾ƒå®‰å…¨
 				pv->k[tp] = resize_delete_leaf(other, p);
 				return true;
 			}
 
-			// ·ñÔò½»¸øÑ­»·¼ÌĞøÉ¾³ı
+			// å¦åˆ™äº¤ç»™å¾ªç¯ç»§ç»­åˆ é™¤
 			do {
-				int curk = tp; // curk±ä³ÉÕâÒ»²ãĞèÒªÉ¾³ıkeyµÄÎ»ÖÃ
-				p = path.top(); // µ±Ç°½ÚµãÉÏÒÆ
+				int curk = tp; // curkå˜æˆè¿™ä¸€å±‚éœ€è¦åˆ é™¤keyçš„ä½ç½®
+				p = path.top(); // å½“å‰èŠ‚ç‚¹ä¸Šç§»
 				path.pop();
 				poffset.pop();
 
 				pv = path.top();
 				pov = poffset.top();
 
-				sign = pov == 0 ? 1 : pov - 1; // ÏàÁÚ½ÚµãÎ»ÖÃ
-				tp = pov == 0 ? 0 : pov - 1; // ÉÏÒ»²ã¿ÉÄÜÒªÉ¾³ıµÄÎ»ÖÃ
+				sign = pov == 0 ? 1 : pov - 1; // ç›¸é‚»èŠ‚ç‚¹ä½ç½®
+				tp = pov == 0 ? 0 : pov - 1; // ä¸Šä¸€å±‚å¯èƒ½è¦åˆ é™¤çš„ä½ç½®
 				other = getnode(pv->a[sign]);
 				direct_delete(p, p->k[curk]);
 				if (merge_delete_nonleaf(other, p)) {
 					address eaddr = pv->a[tp + 1];
 					erase_node(eaddr);
-					if ((pv == ndroot && pv->n > 1) || pv->half(pv->k[tp])) { // ÉÏÒ»²ãÊÇrootÖÁÉÙÎª1 ÆäËüÖÁÉÙÎªhalf
+					if ((pv == ndroot && pv->n > 1) || pv->half(pv->k[tp])) { // ä¸Šä¸€å±‚æ˜¯rootè‡³å°‘ä¸º1 å…¶å®ƒè‡³å°‘ä¸ºhalf
 						direct_delete(pv, pv->k[tp]);
 						return true;
 					}
-					else if (pv == ndroot && pv->n == 1) { // Èç¹ûroot½ÚµãÒªÉ¾³ı ÖØĞÂÉèÖÃroot
+					else if (pv == ndroot && pv->n == 1) { // å¦‚æœrootèŠ‚ç‚¹è¦åˆ é™¤ é‡æ–°è®¾ç½®root
 						address eaddr = root;
 						root = ndroot->a[0];
 						erase_node(eaddr);
 						return true;
 					}
 				}
-				else { // resize¼´¿É£¬²»»áÉ¾³ı½Úµã£¬±È½Ï°²È«
+				else { // resizeå³å¯ï¼Œä¸ä¼šåˆ é™¤èŠ‚ç‚¹ï¼Œæ¯”è¾ƒå®‰å…¨
 					pv->k[tp] = resize_delete_nonleaf(other, p);
 					return true;
 				}
