@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "keeper.hpp"
 #include "definitions.hpp"
@@ -48,19 +48,19 @@ namespace db {
 		}
 
 		void Set(size_t x) { //设置为1
-			int index = x / 8;
+			int index = static_cast<int>(x) / 8;
 			int temp = x % 8;
 			_bits[index] |= (1 << temp);
 		}
 
 		void Reset(size_t x) {
-			int index = x / 8;
+			int index = static_cast<int>(x) / 8;
 			int temp = x % 8;
 			_bits[index] &= ~(1 << temp);
 		}
 
 		bool Get(size_t x) {
-			int index = x / 8;
+			int index = static_cast<int>(x) / 8;
 			int temp = x % 8;
 			if (_bits[index] & (1 << temp)) return 1;
 			else return 0;
@@ -428,11 +428,11 @@ namespace db {
 		}
 
 		void erase_node(address addr) {
-			
+
 			//nd->close();
 			//nd->clear();
 
-			bits->Reset(addr-1);
+			bits->Reset(addr - 1);
 			int i = stb[addr];
 			stb.erase(addr);
 
@@ -797,7 +797,7 @@ namespace db {
 			bits = kp->hold<Bitmap>(s, false, true);
 			bits->load();
 			bits.unpin();
-			
+
 		}
 
 		bptree(Keeper* _k) { // 默认新建b+树
@@ -809,10 +809,10 @@ namespace db {
 		bptree(Keeper* _k, address addr) { // 传入数据库地址则进行读取
 			kp = _k;
 			loadbitmap();
-			if (load(addr)) std::cout << "读取索引成功" << std::endl;
+			if (load(addr)) std::cout << "success read index" << std::endl;
 			else {
 				create();
-				std::cout << "提供地址无效，新建数据库" << pointroot << std::endl;
+				std::cout << "address is invalid ,create new index" << pointroot << std::endl;
 			}
 		}
 
@@ -840,7 +840,7 @@ namespace db {
 
 			//if (p->check()) return false;
 			//else {
-			
+
 			setnode(std::move(p), addr);
 			Node<T>* ps = getnode(addr);
 			if (ps->flag != 1) {
@@ -869,7 +869,7 @@ namespace db {
 			pproot->flag = 1;
 			pproot->next = root;
 
-			std::cout << "新建索引成功" << std::endl;
+			std::cout << "success create index" << std::endl;
 			return true;
 		}
 
